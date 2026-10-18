@@ -1,7 +1,7 @@
 // Service worker: makes the app installable and opens quickly.
 // Pages load from the network first (so updates show right away) and fall back to the saved copy when offline.
 // Data from Supabase is never cached.
-const CACHE = "cihrwa-v47";
+const CACHE = "cihrwa-v49";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {

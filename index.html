@@ -780,6 +780,26 @@ tr[hidden] { display: none !important; }
     box-shadow: inset 0 -1px 0 var(--line); }
 }
 
+/* ---------- Resolutions & documents ---------- */
+.rs-title { font-weight: 800; font-size: 1.02rem; margin: .1rem 0; }
+.rs-last { margin-top: .3rem; padding: .3rem .5rem; background: #F6F8F4; border-radius: var(--radius-s); }
+.res-body { white-space: pre-wrap; background: #FAFBF8; border: 1px solid var(--line); border-radius: var(--radius-s); padding: .7rem .8rem; margin-top: .6rem; max-height: 40vh; overflow: auto; font-size: .95rem; }
+.res-add { border: 1.5px dashed var(--leaf); border-radius: var(--radius-m); padding: .6rem .7rem; margin-bottom: .7rem; }
+.res-add textarea { width: 100%; }
+.timeline { display: grid; gap: .5rem; }
+.tl-item { display: grid; grid-template-columns: 5.5rem 1fr; gap: .6rem; border-left: 3px solid var(--leaf); padding: .2rem 0 .2rem .6rem; }
+.tl-date { font-weight: 800; color: var(--leaf-dark); font-size: .9rem; }
+.doc-row { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: center; border: 1.5px solid var(--line); border-radius: var(--radius-m); padding: .5rem .7rem; background: #fff; }
+.doc-ico { font-size: 1.5rem; }
+.doc-title { font-weight: 700; }
+.file-chip { display: inline-flex; gap: .4rem; align-items: center; border: 1px solid var(--line); border-radius: 99px; padding: .2rem .6rem; margin: .3rem .3rem 0 0; background: #F6F8F4; font-size: .88rem; }
+.res-link { display: block; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: var(--radius-s); text-decoration: none; color: inherit; }
+.res-print .res-sub { text-align: center; margin-top: -2mm; }
+.res-print .res-title { text-align: center; font-weight: 700; margin: 5mm 8mm 4mm; }
+.res-print .res-text { text-align: justify; line-height: 1.6; }
+.res-print .res-updates { margin-top: 8mm; font-size: 9pt; color: #444; border-top: 1px solid #bbb; padding-top: 2mm; }
+@media (max-width: 640px) { .doc-row { grid-template-columns: auto 1fr; } .doc-row .actions { grid-column: 1 / -1; } .tl-item { grid-template-columns: 1fr; } }
+
 </style>
 </head>
 <body>
@@ -841,6 +861,7 @@ tr[hidden] { display: none !important; }
         <a href="#meetings" data-route="meetings">Meetings</a>
         <a href="#activity" data-route="activity">Activity &amp; Rewards</a>
         <a href="#benefits" data-route="benefits">🏅 Standing &amp; Benefits</a>
+        <a href="#documents" data-route="documents">📜 Resolutions &amp; Documents</a>
         <a href="#reports" data-route="reports">Reports</a>
         <a href="#inventory" data-route="inventory">Hog inventory</a>
         <a href="#prices" data-route="prices">Market prices</a>
@@ -850,9 +871,10 @@ tr[hidden] { display: none !important; }
         <a href="#my-herd" data-route="my-herd">🐖 Herd</a>
         <a href="#my-payments" data-route="my-payments">💳 Payments</a>
         <a href="#my-requests" data-route="my-requests">📝 Requests</a>
+        <a href="#my-resolutions" data-route="my-resolutions">📜 Resolutions</a>
         <a href="#account" data-route="account">My account</a>
         <button class="nav-install" id="install-btn" hidden>Install app</button>
-        <div class="app-version" id="app-version">Version 2026.09.28-r47</div>
+        <div class="app-version" id="app-version">Version 2026.10.18-r49</div>
         <button class="nav-logout" id="lock-btn" hidden>🔒 Lock</button>
         <button class="nav-logout" id="logout-btn">Log out</button>
       </nav>
@@ -1012,9 +1034,9 @@ const PERMS = {
 };
 /* pages each kind of account may open (the first one is their home page) */
 function allowedRoutes(role) {
-  if (role === "member") return ["portal", "my-profile", "my-herd", "my-payments", "my-requests", "account"];
+  if (role === "member") return ["portal", "my-profile", "my-herd", "my-payments", "my-requests", "my-resolutions", "account"];
   if (role === "da_officer") return ["requests", "disposals", "inventory", "prices", "activity", "account"];
-  return ["dashboard", "requests", "members", "member", "disposals", "finance", "meetings", "meeting", "activity", "benefits", "reports", "inventory", "prices", "settings", "account"];
+  return ["dashboard", "requests", "members", "member", "disposals", "finance", "meetings", "meeting", "activity", "benefits", "documents", "reports", "inventory", "prices", "settings", "account"];
 }
 function can(perm) {
   return !!(App.profile && PERMS[perm] && PERMS[perm].includes(App.profile.role));
@@ -1229,7 +1251,9 @@ function rasStatus(r) {
 
 /* ---------- Backup ---------- */
 const BACKUP_TABLES = ["settings", "members", "herd_updates", "meetings", "attendance", "disposals",
-  "transactions", "rewards", "ras_certificates", "buyer_price_brackets", "market_prices"];
+  "transactions", "rewards", "ras_certificates", "buyer_price_brackets", "market_prices",
+  "cert_requests", "benefit_programs", "benefit_allocations", "payment_accounts", "payment_submissions", "fund_transfers",
+  "resolutions", "resolution_updates", "documents"];
 function facebookLink(fb) {
   const v = (fb || "").trim();
   if (!v) return "";
@@ -2613,6 +2637,36 @@ const Cert = {
         printHTML(Cert.statement(m, txns, App.settings, o.from, o.to));
       },
     });
+  },
+
+  /* 8. Board resolution (printable) */
+  resolution(r, meeting, updates, s) {
+    const votes = [r.votes_for, r.votes_against, r.votes_abstain].some((v) => v !== null && v !== undefined)
+      ? `<p class="res-votes">Votes: ${r.votes_for ?? 0} in favor, ${r.votes_against ?? 0} against, ${r.votes_abstain ?? 0} abstained.</p>`
+      : "";
+    return `<div class="cert res-print">
+      ${Cert.head(s)}
+      <div class="title" style="font-size:16pt;text-align:center;margin-top:5mm">RESOLUTION NO. ${esc(r.resolution_no || "")}</div>
+      <div class="res-sub">Series of ${esc((r.approved_date || "").slice(0, 4) || new Date().getFullYear())}</div>
+      <div class="res-title">${esc(r.title).toUpperCase()}</div>
+      <div class="res-text">${esc(r.body || "").replace(/\n/g, "<br>")}</div>
+      ${r.moved_by || r.seconded_by ? `<p>Moved by: <strong>${esc(r.moved_by || "—")}</strong> &nbsp;·&nbsp; Seconded by: <strong>${esc(r.seconded_by || "—")}</strong></p>` : ""}
+      ${votes}
+      <p>${
+        r.approved_date
+          ? `APPROVED this ${esc(ordinalDay(r.approved_date))}${meeting ? `, during the ${esc(meeting.title)}` : ""}.`
+          : ""
+      }</p>
+      <div class="sigs" style="margin-top:12mm">
+        ${Cert.sig(s.secretary_name, "Secretary (Certified correct)")}
+        ${Cert.sig(s.president_name, "President (Attested)")}
+      </div>
+      ${
+        updates && updates.length
+          ? `<div class="res-updates"><strong>Status: ${esc(RES_STATUS[r.status] || r.status)}</strong> — latest update ${esc(fmtShort(updates[0].update_date))}: ${esc(updates[0].note)}</div>`
+          : ""
+      }
+    </div>`;
   },
 
   /* 7. Acknowledgment receipt — two copies on one sheet (member's and association's) */
@@ -5053,7 +5107,9 @@ App.pages.meeting = async function (main, id) {
             .join("") || emptyRow(3, "No active members as of this date.")
         }</tbody></table></div>
       ${editable && list.length ? `<div class="actions" style="margin-top:1rem"><button class="btn primary" id="save-att">Save attendance</button></div>` : ""}
-    </div>`;
+    </div>
+    <div class="panel" id="mt-docs"><p class="muted small">Loading resolutions…</p></div>`;
+  meetingDocsPanel(main.querySelector("#mt-docs"), mt);
 
   const summary = () => {
     const c = { present: 0, late: 0, excused: 0, absent: 0, none: 0 };
@@ -6245,6 +6301,7 @@ App.pages.portal = async function (main) {
       s.facebook_page_url ? `<a class="btn" href="${esc(s.facebook_page_url)}" target="_blank" rel="noopener">Our Facebook page</a>` : "")}
     <div id="notif-box"></div>
     <div class="panel" id="my-standing"><p class="muted">Loading my standing…</p></div>
+    <div class="panel" id="my-res-news"></div>
     <div class="panel"><h2>📢 Upcoming meetings &amp; activities</h2>
       ${meetings.length ? `<div class="stack" style="gap:.6rem">${meetings.map(meetingCard).join("")}</div>` : `<p class="muted">No upcoming meetings or activities yet.</p>`}
     </div>
@@ -6272,6 +6329,7 @@ App.pages.portal = async function (main) {
   });
   setupMemberNotifications(main, []); // shows the "turn on notifications" offer
   myStandingPanel(main.querySelector("#my-standing"));
+  memberResolutionNews(main.querySelector("#my-res-news"));
 };
 
 /* ---------- 👤 Profile ---------- */
@@ -7166,7 +7224,9 @@ function requestDialog(r, m, members) {
       ? `<button type="button" class="btn" id="rq-edit">Edit</button>
          ${can("delete") ? `<button type="button" class="btn danger" id="rq-delete">Delete</button>` : ""}
          ${!r.disposal_id && ["pending", "confirmed"].includes(r.status) ? `<button type="button" class="btn gold" id="rq-disposal">Create disposal &amp; certification</button>` : ""}
+         ${r.disposal_id && r.status !== "declined" ? `<button type="button" class="btn" id="rq-reprint">🖨 Reprint certification</button>` : ""}
          ${r.status === "confirmed" ? `<button type="button" class="btn" id="rq-released">Mark as picked up</button>` : ""}
+         ${r.status === "released" ? `<button type="button" class="btn" id="rq-unrelease">↩ Undo release</button>` : ""}
          ${["pending", "confirmed"].includes(r.status) ? `<button type="button" class="btn danger" id="rq-decline">Decline</button>` : ""}`
       : "",
     onOpen: (el) => {
@@ -7199,6 +7259,20 @@ function requestDialog(r, m, members) {
       });
       foot.querySelector("#rq-released")?.addEventListener("click", async () => {
         await saveReq(r, { status: "released" }, "Marked as picked up.");
+      });
+      foot.querySelector("#rq-reprint")?.addEventListener("click", async () => {
+        try {
+          const d = (await db(App.sb.from("disposals").select("*").eq("id", r.disposal_id)))[0];
+          if (!d) return toast("The disposal record of this request was not found.", true);
+          if (!d.assoc_cert_no) return toast("The certification has not been issued yet. Open Disposal / Sales and issue it first.", true);
+          printHTML(Cert.forDisposal(d, m, App.settings));
+        } catch (err) {
+          toast(errMsg(err), true);
+        }
+      });
+      foot.querySelector("#rq-unrelease")?.addEventListener("click", async () => {
+        if (!(await confirmBox(`Put <strong>${esc(r.request_no)}</strong> back to <strong>Confirmed</strong> (not yet picked up)? The certification stays issued and can still be reprinted. ${esc(m ? displayName(m) : "The member")} will see it as Confirmed again.`, "Undo release"))) return;
+        await saveReq(r, { status: "confirmed", pickup_at: r.pickup_at || new Date().toISOString() }, "Back to Confirmed — not yet picked up.");
       });
       foot.querySelector("#rq-decline")?.addEventListener("click", () =>
         modal({
@@ -9078,6 +9152,549 @@ async function mergeHolderForm(from) {
       App.render();
     },
   });
+}
+
+/* ===== js/pages/documents.js ===== */
+/* =============================================================
+   RESOLUTIONS & DOCUMENTS
+   Resolutions with a thread of updates, and a library of all papers.
+   Files are kept in the private "documents" bucket of Supabase Storage.
+   ============================================================= */
+const RES_STATUS = {
+  proposed: "For discussion",
+  approved: "Approved",
+  in_progress: "Ongoing",
+  implemented: "Done",
+  not_approved: "Not approved",
+  cancelled: "Cancelled",
+};
+function resBadge(st) {
+  const c = { proposed: "b-grey", approved: "b-blue", in_progress: "b-gold", implemented: "b-green", not_approved: "b-red", cancelled: "b-grey" }[st] || "b-grey";
+  return `<span class="badge ${c}">${esc(RES_STATUS[st] || st)}</span>`;
+}
+const DOC_CATS = {
+  resolution: "Resolution",
+  minutes: "Minutes of meeting",
+  letter: "Letter / communication",
+  contract: "MOA / contract",
+  permit: "Permit / registration",
+  financial: "Financial report",
+  certificate: "Certificate",
+  report: "Report",
+  other: "Other",
+};
+function canEditResolutions() {
+  return ["president", "vice_president", "secretary", "assistant_secretary"].includes(App.profile?.role);
+}
+function canUploadDocs() {
+  return ["president", "vice_president", "secretary", "assistant_secretary", "treasurer", "assistant_treasurer", "auditor"].includes(App.profile?.role);
+}
+const fileIcon = (t) => (/pdf/.test(t) ? "📄" : /image/.test(t) ? "🖼️" : /sheet|excel|csv/.test(t) ? "📊" : /word|document/.test(t) ? "📝" : "📎");
+const sizeText = (n) => (!n ? "" : n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+
+/* ---------- files ---------- */
+function dataUrlToBlob(url) {
+  const [head, b64] = url.split(",");
+  const type = head.match(/data:(.*?);/)[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+/* upload each file to Storage and record it in "documents" */
+async function uploadDocuments(files, meta) {
+  const out = [];
+  for (const f of files) {
+    let blob = f;
+    let type = f.type || "application/octet-stream";
+    let name = f.name || "file";
+    if (/^image\//.test(type) && !/gif|svg/.test(type)) {
+      // pictures of papers: smaller, still readable
+      blob = dataUrlToBlob(await resizePhoto(f, 1800, 0.82));
+      type = "image/jpeg";
+      name = name.replace(/\.[^.]+$/, "") + ".jpg";
+    }
+    if (blob.size > 20 * 1048576) throw new Error(`${name} is bigger than 20 MB. Please make it smaller (e.g. scan at a lower quality).`);
+    const safe = name.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(-80);
+    const path = `${new Date().getFullYear()}/${crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random().toString(16).slice(2)}-${safe}`;
+    const { error } = await App.sb.storage.from("documents").upload(path, blob, { contentType: type, upsert: false });
+    if (error) {
+      if (/bucket/i.test(error.message || "")) throw new Error("File storage is not set up yet: re-run the latest schema.sql in Supabase.");
+      throw error;
+    }
+    const row = await db(
+      App.sb
+        .from("documents")
+        .insert({
+          title: meta.title || name.replace(/\.[^.]+$/, ""), category: meta.category || "other", doc_date: meta.doc_date || isoDate(),
+          meeting_id: meta.meeting_id || null, resolution_id: meta.resolution_id || null, update_id: meta.update_id || null,
+          file_path: path, file_name: name, file_type: type, file_size: blob.size, notes: meta.notes || "",
+          members_can_see: !!meta.members_can_see, uploaded_by: App.profile.full_name || "",
+        })
+        .select()
+        .single()
+    );
+    out.push(row);
+  }
+  return out;
+}
+async function openDocument(d) {
+  const w = window.open("", "_blank"); // open right away so phones don't block it
+  try {
+    const { data, error } = await App.sb.storage.from("documents").createSignedUrl(d.file_path, 3600);
+    if (error) throw error;
+    if (w) w.location = data.signedUrl;
+    else location.href = data.signedUrl;
+  } catch (e) {
+    if (w) w.close();
+    toast(errMsg(e), true);
+  }
+}
+async function deleteDocument(d) {
+  await db(App.sb.from("documents").delete().eq("id", d.id));
+  try {
+    await App.sb.storage.from("documents").remove([d.file_path]);
+  } catch (_) {}
+}
+function filePickerHTML(id = "doc-files", label = "📎 Attach files") {
+  return `<div class="file-pick">
+    <label class="btn small primary" style="display:inline-block">${label}
+      <input type="file" id="${id}" multiple hidden accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.csv,.txt"></label>
+    <label class="btn small" style="display:inline-block">📷 Take picture
+      <input type="file" id="${id}-cam" accept="image/*" capture="environment" hidden></label>
+    <div class="file-list" id="${id}-list"></div>
+    <p class="muted small" style="margin:.3rem 0 0">PDF, pictures, Word or Excel · up to 20 MB each.</p></div>`;
+}
+function bindFilePicker(root, id, files) {
+  const list = root.querySelector(`#${id}-list`);
+  const draw = () =>
+    (list.innerHTML = files
+      .map((f, i) => `<div class="file-chip">${fileIcon(f.type)} ${esc(f.name)} <span class="muted small">${sizeText(f.size)}</span>
+        <button type="button" class="icon-btn" data-rmf="${i}" aria-label="Remove">✕</button></div>`)
+      .join(""));
+  const add = (e) => {
+    files.push(...e.target.files);
+    e.target.value = "";
+    draw();
+  };
+  root.querySelector(`#${id}`).addEventListener("change", add);
+  root.querySelector(`#${id}-cam`).addEventListener("change", add);
+  list.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rmf]");
+    if (b) files.splice(Number(b.dataset.rmf), 1), draw();
+  });
+}
+function docRowsHTML(docs, canDel = false) {
+  return docs
+    .map(
+      (d) => `<div class="doc-row" data-doc="${d.id}"><span class="doc-ico">${fileIcon(d.file_type)}</span>
+      <div><div class="doc-title">${esc(d.title)}</div>
+        <div class="muted small">${esc(DOC_CATS[d.category] || d.category)} · ${esc(fmtShort(d.doc_date))}${d.file_size ? " · " + sizeText(d.file_size) : ""}${
+          d.members_can_see ? ' · <span class="badge b-green">Members can see</span>' : ""
+        }</div></div>
+      <div class="actions"><button type="button" class="btn small" data-docopen>Open</button>${canDel ? `<button type="button" class="btn small danger" data-docdel>Delete</button>` : ""}</div></div>`
+    )
+    .join("");
+}
+
+/* ---------- page ---------- */
+App.pages.documents = async function (main, tab = "resolutions") {
+  let res, upd, docs, meetings;
+  try {
+    [res, upd, docs, meetings] = await Promise.all([
+      db(App.sb.from("resolutions").select("*").order("approved_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false })),
+      db(App.sb.from("resolution_updates").select("*").order("update_date", { ascending: false }).order("created_at", { ascending: false })),
+      db(App.sb.from("documents").select("*").order("doc_date", { ascending: false }).order("created_at", { ascending: false })),
+      db(App.sb.from("meetings").select("id, title, meeting_date, meeting_type").order("meeting_date", { ascending: false })),
+    ]);
+  } catch (e) {
+    main.innerHTML = pageHead("Resolutions & Documents") + `<div class="panel"><p class="error">${esc(/resolutions|documents/.test(e.message || "") ? "The database needs updating: re-run the latest schema.sql in Supabase." : errMsg(e))}</p></div>`;
+    return;
+  }
+  const mt = Object.fromEntries(meetings.map((m) => [m.id, m]));
+  const counts = Object.fromEntries(Object.keys(RES_STATUS).map((k) => [k, res.filter((r) => r.status === k).length]));
+  main.innerHTML =
+    pageHead(
+      "Resolutions & Documents",
+      "Every resolution with its updates, and all the Association's papers in one place.",
+      `${canEditResolutions() ? `<button class="btn primary" id="res-new">＋ New resolution</button>` : ""}${canUploadDocs() ? `<button class="btn" id="doc-new">⬆ Upload document</button>` : ""}`
+    ) +
+    `<div class="ledger">
+      <div><div class="fig">${res.length}</div><div class="cap">Resolutions</div></div>
+      <div><div class="fig">${counts.implemented}</div><div class="cap">${resBadge("implemented")}</div></div>
+      <div><div class="fig">${counts.in_progress + counts.approved}</div><div class="cap">${resBadge("in_progress")} / ${resBadge("approved")}</div></div>
+      <div><div class="fig">${docs.length}</div><div class="cap">Documents</div></div>
+    </div>
+    <div class="tabs" id="dc-tabs"><button data-tab="resolutions">📜 Resolutions</button><button data-tab="files">🗂️ Documents</button></div>
+    <div id="dc-body"></div>`;
+  const body = main.querySelector("#dc-body");
+  const state = { q: "", status: "", year: "", cat: "" };
+  const years = [...new Set([...res.map((r) => (r.approved_date || r.created_at || "").slice(0, 4)), ...docs.map((d) => d.doc_date.slice(0, 4))].filter(Boolean))].sort().reverse();
+
+  const drawRes = () => {
+    const q = state.q.toLowerCase();
+    const list = res.filter(
+      (r) =>
+        (!state.status || r.status === state.status) &&
+        (!state.year || (r.approved_date || r.created_at || "").startsWith(state.year)) &&
+        (!q || `${r.resolution_no} ${r.title} ${r.body} ${r.responsible}`.toLowerCase().includes(q))
+    );
+    body.querySelector("#rs-list").innerHTML =
+      list
+        .map((r) => {
+          const last = upd.find((u) => u.resolution_id === r.id);
+          const nDocs = docs.filter((d) => d.resolution_id === r.id).length;
+          return `<div class="req-card clickable" data-id="${r.id}"><div class="req-main">
+            <div class="req-top"><strong class="memno">Res. No. ${esc(r.resolution_no || "—")}</strong> ${resBadge(r.status)} ${r.members_can_see ? "" : '<span class="badge b-grey">Officers only</span>'}</div>
+            <div class="rs-title">${esc(r.title)}</div>
+            <div class="muted small">${r.approved_date ? "Approved " + esc(fmtDate(r.approved_date)) : ""}${r.meeting_id && mt[r.meeting_id] ? " · " + esc(mt[r.meeting_id].title) : ""}${
+            r.responsible ? " · in charge: " + esc(r.responsible) : ""
+          }${r.target_date ? " · target " + esc(fmtShort(r.target_date)) : ""}${nDocs ? ` · 📎 ${nDocs}` : ""}</div>
+            ${last ? `<div class="small rs-last">🕑 ${esc(fmtShort(last.update_date))}: ${esc(last.note)}</div>` : ""}
+          </div><button class="btn small primary">Open</button></div>`;
+        })
+        .join("") || `<p class="muted">No resolutions${state.q || state.status || state.year ? " match the filter" : " yet"}.</p>`;
+  };
+  const drawFiles = () => {
+    const q = state.q.toLowerCase();
+    const list = docs.filter(
+      (d) => (!state.cat || d.category === state.cat) && (!state.year || d.doc_date.startsWith(state.year)) && (!q || `${d.title} ${d.file_name} ${d.notes}`.toLowerCase().includes(q))
+    );
+    body.querySelector("#df-list").innerHTML = list.length ? docRowsHTML(list, canEditResolutions()) : `<p class="muted">No documents${state.q || state.cat || state.year ? " match the filter" : " yet"}.</p>`;
+  };
+  const show = (t) => {
+    tab = t;
+    history.replaceState(null, "", "#documents/" + t);
+    main.querySelectorAll("#dc-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+    const yearSel = `<label>Year<select data-f="year">${options(Object.fromEntries(years.map((y) => [y, y])), state.year, "All")}</select></label>`;
+    if (t === "files") {
+      body.innerHTML = `<div class="filters"><label>🔎 Search<input data-f="q" value="${esc(state.q)}" placeholder="Title or file name"></label>
+          <label>Type<select data-f="cat">${options(DOC_CATS, state.cat, "All")}</select></label>${yearSel}</div>
+        <div class="panel"><div id="df-list" class="stack" style="gap:.4rem"></div></div>`;
+      drawFiles();
+    } else {
+      body.innerHTML = `<div class="filters"><label>🔎 Search<input data-f="q" value="${esc(state.q)}" placeholder="Number, title or words"></label>
+          <label>Status<select data-f="status">${options(RES_STATUS, state.status, "All")}</select></label>${yearSel}</div>
+        <div id="rs-list" class="stack" style="gap:.6rem"></div>`;
+      drawRes();
+    }
+  };
+  body.addEventListener("input", (e) => {
+    const k = e.target.dataset.f;
+    if (!k) return;
+    state[k] = e.target.value;
+    tab === "files" ? drawFiles() : drawRes();
+  });
+  body.addEventListener("click", async (e) => {
+    const card = e.target.closest(".req-card[data-id]");
+    if (card) return resolutionView(res.find((r) => r.id === card.dataset.id), { upd, docs, mt });
+    const row = e.target.closest("[data-doc]");
+    if (!row) return;
+    const d = docs.find((x) => x.id === row.dataset.doc);
+    if (e.target.closest("[data-docopen]")) return openDocument(d);
+    if (e.target.closest("[data-docdel]")) {
+      if (!(await confirmBox(`Delete the document <strong>${esc(d.title)}</strong>?`, "Delete"))) return;
+      await deleteDocument(d);
+      toast("Document deleted.");
+      App.render();
+    }
+  });
+  main.querySelector("#dc-tabs").addEventListener("click", (e) => e.target.closest("[data-tab]") && show(e.target.closest("[data-tab]").dataset.tab));
+  main.querySelector("#res-new")?.addEventListener("click", () => resolutionForm(null, meetings));
+  main.querySelector("#doc-new")?.addEventListener("click", () => documentForm({}, meetings, res));
+  show(tab === "files" ? "files" : "resolutions");
+};
+
+/* ---------- forms ---------- */
+function resolutionForm(r, meetings, preset = {}) {
+  const isNew = !r;
+  r = r || { status: "approved", members_can_see: true, approved_date: isoDate(), ...preset };
+  const files = [];
+  modal({
+    title: isNew ? "New resolution" : `Edit Res. No. ${r.resolution_no}`,
+    body: `<div class="grid">
+        <label>Resolution no. <span class="hint">leave blank for automatic (e.g. 2026-004); type the number of old resolutions</span>
+          <input name="resolution_no" value="${esc(r.resolution_no || "")}" placeholder="automatic"></label>
+        <label>Date approved<input type="date" name="approved_date" value="${esc(r.approved_date || "")}"></label>
+        <label>Meeting<select name="meeting_id">${options(
+          Object.fromEntries(meetings.map((m) => [m.id, `${fmtShort(m.meeting_date)} · ${m.title}`])),
+          r.meeting_id || "",
+          "— none —"
+        )}</select></label>
+      </div>
+      <label style="margin-top:.6rem">Title *<input name="title" required value="${esc(r.title || "")}" placeholder="e.g. Resolution approving the monthly dues of ₱30"></label>
+      <label style="margin-top:.6rem">Text of the resolution <span class="hint">WHEREAS… NOW THEREFORE, BE IT RESOLVED…</span>
+        <textarea name="body" rows="7">${esc(r.body || "")}</textarea></label>
+      <div class="grid" style="margin-top:.6rem">
+        <label>Moved by<input name="moved_by" value="${esc(r.moved_by || "")}"></label>
+        <label>Seconded by<input name="seconded_by" value="${esc(r.seconded_by || "")}"></label>
+        <label>Votes for<input type="number" min="0" name="votes_for" value="${esc(r.votes_for ?? "")}"></label>
+        <label>Against<input type="number" min="0" name="votes_against" value="${esc(r.votes_against ?? "")}"></label>
+        <label>Abstain<input type="number" min="0" name="votes_abstain" value="${esc(r.votes_abstain ?? "")}"></label>
+        <label>Status<select name="status">${options(RES_STATUS, r.status)}</select></label>
+        <label>In charge <span class="hint">person or committee</span><input name="responsible" value="${esc(r.responsible || "")}"></label>
+        <label>Target date<input type="date" name="target_date" value="${esc(r.target_date || "")}"></label>
+      </div>
+      <label class="check" style="margin-top:.6rem"><input type="checkbox" name="members_can_see" ${r.members_can_see ? "checked" : ""}> Members can see this resolution and its updates in their app</label>
+      ${isNew ? `<fieldset style="margin-top:.8rem"><legend>Signed copy / attachments</legend>${filePickerHTML("res-files")}</fieldset>` : ""}`,
+    submitLabel: isNew ? "Save resolution" : "Save changes",
+    onOpen: (el) => isNew && bindFilePicker(el, "res-files", files),
+    onSubmit: async (form) => {
+      const o = formToObj(form);
+      o.resolution_no = (o.resolution_no || "").trim() || null;
+      if (isNew) o.created_by = App.profile.full_name || "";
+      let saved;
+      try {
+        saved = isNew
+          ? await db(App.sb.from("resolutions").insert(o).select().single())
+          : await db(App.sb.from("resolutions").update(o).eq("id", r.id).select().single());
+      } catch (e) {
+        if (/uq_resolution_no|duplicate/i.test(e.message || "")) throw new Error(`Resolution no. ${o.resolution_no} already exists.`);
+        throw e;
+      }
+      if (files.length)
+        await uploadDocuments(files, { category: "resolution", resolution_id: saved.id, meeting_id: saved.meeting_id, doc_date: saved.approved_date,
+          title: `Res. No. ${saved.resolution_no} — ${saved.title}`, members_can_see: saved.members_can_see });
+      toast(`Saved Res. No. ${saved.resolution_no}.`);
+      App.render();
+    },
+  });
+}
+
+function documentForm(pre, meetings, resolutions) {
+  const files = [];
+  modal({
+    title: "Upload document",
+    body: `<div class="grid">
+        <label>Title <span class="hint">blank = file name</span><input name="title" value="${esc(pre.title || "")}" placeholder="e.g. Minutes of the General Assembly"></label>
+        <label>Type<select name="category">${options(DOC_CATS, pre.category || "minutes")}</select></label>
+        <label>Date<input type="date" name="doc_date" value="${esc(pre.doc_date || isoDate())}"></label>
+        <label>Meeting<select name="meeting_id">${options(Object.fromEntries(meetings.map((m) => [m.id, `${fmtShort(m.meeting_date)} · ${m.title}`])), pre.meeting_id || "", "— none —")}</select></label>
+        <label>Resolution<select name="resolution_id">${options(Object.fromEntries((resolutions || []).map((r) => [r.id, `${r.resolution_no} · ${r.title}`])), pre.resolution_id || "", "— none —")}</select></label>
+      </div>
+      <label style="margin-top:.6rem">Notes<input name="notes"></label>
+      <label class="check" style="margin-top:.6rem"><input type="checkbox" name="members_can_see" ${pre.members_can_see ? "checked" : ""}> Members can see this document in their app</label>
+      <div style="margin-top:.8rem">${filePickerHTML("up-files", "📎 Choose files")}</div>`,
+    submitLabel: "Upload",
+    onOpen: (el) => bindFilePicker(el, "up-files", files),
+    onSubmit: async (form) => {
+      const o = formToObj(form);
+      if (!files.length) {
+        toast("Choose at least one file.", true);
+        return false;
+      }
+      const up = await uploadDocuments(files, { ...o, title: files.length === 1 ? o.title : o.title ? "" : "" });
+      if (files.length > 1 && o.title) for (const [i, d] of up.entries()) await db(App.sb.from("documents").update({ title: `${o.title} (${i + 1})` }).eq("id", d.id));
+      toast(`Uploaded ${up.length} file${up.length === 1 ? "" : "s"}.`);
+      App.render();
+    },
+  });
+}
+
+/* ---------- one resolution: text, updates thread, attachments ---------- */
+function resolutionView(r, ctx) {
+  const updates = ctx.upd.filter((u) => u.resolution_id === r.id);
+  const files = ctx.docs.filter((d) => d.resolution_id === r.id);
+  const edit = canEditResolutions();
+  const votes = [r.votes_for, r.votes_against, r.votes_abstain].some((v) => v !== null && v !== undefined)
+    ? `${r.votes_for ?? 0} for · ${r.votes_against ?? 0} against · ${r.votes_abstain ?? 0} abstain`
+    : "";
+  modal({
+    title: `Res. No. ${r.resolution_no || "—"}`,
+    body: `<div class="req-top">${resBadge(r.status)} ${r.members_can_see ? '<span class="badge b-green">Members can see</span>' : '<span class="badge b-grey">Officers only</span>'}</div>
+      <h3 style="margin:.5rem 0">${esc(r.title)}</h3>
+      <dl class="dl">
+        ${r.approved_date ? `<dt>Approved</dt><dd>${esc(fmtDate(r.approved_date))}</dd>` : ""}
+        ${r.meeting_id && ctx.mt[r.meeting_id] ? `<dt>Meeting</dt><dd><a href="#meeting/${r.meeting_id}">${esc(ctx.mt[r.meeting_id].title)}</a></dd>` : ""}
+        ${r.moved_by || r.seconded_by ? `<dt>Moved / seconded</dt><dd>${esc(r.moved_by || "—")} / ${esc(r.seconded_by || "—")}</dd>` : ""}
+        ${votes ? `<dt>Votes</dt><dd>${esc(votes)}</dd>` : ""}
+        ${r.responsible ? `<dt>In charge</dt><dd>${esc(r.responsible)}</dd>` : ""}
+        ${r.target_date ? `<dt>Target date</dt><dd>${esc(fmtDate(r.target_date))}</dd>` : ""}
+      </dl>
+      ${r.body ? `<div class="res-body">${esc(r.body)}</div>` : ""}
+      <h3 style="margin:1rem 0 .4rem">📎 Attachments</h3>
+      <div class="stack" style="gap:.4rem" id="rv-files">${files.length ? docRowsHTML(files, edit) : '<p class="muted small" style="margin:0">None.</p>'}</div>
+      <h3 style="margin:1rem 0 .4rem">🕑 Updates</h3>
+      ${
+        edit
+          ? `<div class="res-add"><textarea name="note" rows="2" placeholder="What happened? e.g. Feeds delivered to all members"></textarea>
+            <div class="grid" style="margin-top:.4rem"><label>Date<input type="date" name="update_date" value="${isoDate()}"></label>
+              <label>Change status to<select name="new_status">${options(RES_STATUS, "", "— keep —")}</select></label></div>
+            ${filePickerHTML("upd-files", "📎 Attach")}
+            <button type="button" class="btn small primary" id="rv-post" style="margin-top:.4rem">Post update</button></div>`
+          : ""
+      }
+      <div class="timeline">${
+        updates
+          .map((u) => {
+            const att = ctx.docs.filter((d) => d.update_id === u.id);
+            return `<div class="tl-item"><div class="tl-date">${esc(fmtShort(u.update_date))}</div><div>${u.new_status ? resBadge(u.new_status) + " " : ""}${esc(u.note)}
+              <div class="muted small">${esc(u.posted_by || "")}</div>${att.length ? `<div class="stack" style="gap:.3rem;margin-top:.3rem">${docRowsHTML(att, false)}</div>` : ""}</div></div>`;
+          })
+          .join("") || '<p class="muted small">No updates yet.</p>'
+      }</div>`,
+    submitLabel: "Close",
+    extra: `<button type="button" class="btn" id="rv-print">🖨 Print</button>${edit ? `<button type="button" class="btn" id="rv-edit">Edit</button>` : ""}${
+      ["president", "secretary"].includes(App.profile.role) ? `<button type="button" class="btn danger" id="rv-del">Delete</button>` : ""
+    }`,
+    onOpen: (el) => {
+      const updFiles = [];
+      if (edit) bindFilePicker(el, "upd-files", updFiles);
+      el.addEventListener("click", async (e) => {
+        const row = e.target.closest("[data-doc]");
+        if (row) {
+          const d = ctx.docs.find((x) => x.id === row.dataset.doc);
+          if (e.target.closest("[data-docopen]")) return openDocument(d);
+          if (e.target.closest("[data-docdel]") && (await confirmBox(`Delete <strong>${esc(d.title)}</strong>?`, "Delete"))) {
+            await deleteDocument(d);
+            toast("Deleted.");
+            App.render();
+          }
+        }
+      });
+      el.querySelector("#rv-post")?.addEventListener("click", async () => {
+        const note = el.querySelector("[name=note]").value.trim();
+        if (!note) return toast("Write the update first.", true);
+        try {
+          const u = await db(
+            App.sb
+              .from("resolution_updates")
+              .insert({ resolution_id: r.id, note, update_date: el.querySelector("[name=update_date]").value || isoDate(),
+                new_status: el.querySelector("[name=new_status]").value || null, posted_by: App.profile.full_name || "" })
+              .select()
+              .single()
+          );
+          if (updFiles.length)
+            await uploadDocuments(updFiles, { category: "report", resolution_id: r.id, update_id: u.id, title: `Res. No. ${r.resolution_no} — update ${fmtShort(u.update_date)}`,
+              members_can_see: r.members_can_see });
+          toast("Update posted.");
+          closeModal();
+          App.render();
+        } catch (err) {
+          toast(errMsg(err), true);
+        }
+      });
+      document.getElementById("rv-print").addEventListener("click", () => printHTML(Cert.resolution(r, ctx.mt[r.meeting_id], updates, App.settings)));
+      document.getElementById("rv-edit")?.addEventListener("click", async () => {
+        closeModal();
+        const meetings = await db(App.sb.from("meetings").select("id, title, meeting_date").order("meeting_date", { ascending: false }));
+        resolutionForm(r, meetings);
+      });
+      document.getElementById("rv-del")?.addEventListener("click", async () => {
+        if (!(await confirmBox(`Delete Res. No. ${esc(r.resolution_no)} with its updates and attachments?`, "Delete"))) return;
+        for (const d of files) await deleteDocument(d);
+        await db(App.sb.from("resolutions").delete().eq("id", r.id));
+        toast("Resolution deleted.");
+        App.render();
+      });
+    },
+  });
+}
+
+/* ---------- meeting page: its resolutions and papers ---------- */
+async function meetingDocsPanel(box, mt) {
+  let res = [], docs = [];
+  try {
+    [res, docs] = await Promise.all([
+      db(App.sb.from("resolutions").select("*").eq("meeting_id", mt.id).order("resolution_no")),
+      db(App.sb.from("documents").select("*").eq("meeting_id", mt.id).is("resolution_id", null).order("doc_date")),
+    ]);
+  } catch (_) {
+    box.hidden = true;
+    return;
+  }
+  box.innerHTML = `<div class="page-head" style="margin-bottom:.4rem"><h2 style="margin:0">📜 Resolutions &amp; papers of this meeting</h2>
+      <div class="actions">${canEditResolutions() ? `<button class="btn small primary" id="mt-res">＋ Resolution</button>` : ""}${canUploadDocs() ? `<button class="btn small" id="mt-doc">⬆ Minutes / document</button>` : ""}</div></div>
+    ${
+      res.length
+        ? `<div class="stack" style="gap:.4rem">${res
+            .map((r) => `<a class="res-link" href="#documents/resolutions" data-res="${r.id}"><strong class="memno">Res. No. ${esc(r.resolution_no)}</strong> ${esc(r.title)} ${resBadge(r.status)}</a>`)
+            .join("")}</div>`
+        : '<p class="muted small">No resolutions recorded for this meeting.</p>'
+    }
+    ${docs.length ? `<div class="stack" style="gap:.4rem;margin-top:.6rem">${docRowsHTML(docs, false)}</div>` : ""}`;
+  box.querySelector("#mt-res")?.addEventListener("click", async () => {
+    const meetings = await db(App.sb.from("meetings").select("id, title, meeting_date").order("meeting_date", { ascending: false }));
+    resolutionForm(null, meetings, { meeting_id: mt.id, approved_date: mt.meeting_date });
+  });
+  box.querySelector("#mt-doc")?.addEventListener("click", async () => {
+    const meetings = await db(App.sb.from("meetings").select("id, title, meeting_date").order("meeting_date", { ascending: false }));
+    documentForm({ meeting_id: mt.id, category: "minutes", doc_date: mt.meeting_date, title: `Minutes — ${mt.title}`, members_can_see: true }, meetings, res);
+  });
+  box.addEventListener("click", (e) => {
+    const d = e.target.closest("[data-doc]");
+    if (d && e.target.closest("[data-docopen]")) openDocument(docs.find((x) => x.id === d.dataset.doc));
+  });
+}
+
+/* ---------- member app ---------- */
+App.pages["my-resolutions"] = async function (main) {
+  let res, upd, docs;
+  try {
+    [res, upd, docs] = await Promise.all([
+      db(App.sb.from("resolutions").select("*").order("approved_date", { ascending: false, nullsFirst: false })),
+      db(App.sb.from("resolution_updates").select("*").order("update_date", { ascending: false }).order("created_at", { ascending: false })),
+      db(App.sb.from("documents").select("*").order("doc_date", { ascending: false })),
+    ]);
+  } catch (e) {
+    main.innerHTML = `<div class="panel"><p class="muted">Not available yet — please ask the Secretary to update the system.</p></div>`;
+    return;
+  }
+  const done = res.filter((r) => r.status === "implemented").length;
+  main.innerHTML =
+    pageHead("Resolutions", "Decisions of the Association and how far they are.") +
+    `<div class="ledger"><div><div class="fig">${res.length}</div><div class="cap">Resolutions</div></div>
+      <div><div class="fig">${done}</div><div class="cap">${resBadge("implemented")}</div></div>
+      <div><div class="fig">${res.filter((r) => ["approved", "in_progress"].includes(r.status)).length}</div><div class="cap">Not yet done</div></div></div>
+    <div class="stack" style="gap:.6rem" id="mr-list">${
+      res
+        .map((r) => {
+          const last = upd.find((u) => u.resolution_id === r.id);
+          return `<div class="req-card clickable mine" data-id="${r.id}"><div class="req-main">
+            <div class="req-top"><strong class="memno">Res. No. ${esc(r.resolution_no || "")}</strong> ${resBadge(r.status)}</div>
+            <div class="rs-title">${esc(r.title)}</div>
+            <div class="muted small">${r.approved_date ? "Approved " + esc(fmtDate(r.approved_date)) : ""}</div>
+            ${last ? `<div class="small rs-last">🕑 ${esc(fmtShort(last.update_date))}: ${esc(last.note)}</div>` : ""}
+            <div class="small"><span class="link-like">View ›</span></div></div></div>`;
+        })
+        .join("") || '<div class="panel"><p class="muted" style="margin:0">No resolutions shared yet.</p></div>'
+    }</div>
+    ${
+      docs.filter((d) => !d.resolution_id).length
+        ? `<div class="panel" style="margin-top:1rem"><h2>🗂️ Documents</h2><div class="stack" style="gap:.4rem" id="mr-docs">${docRowsHTML(docs.filter((d) => !d.resolution_id))}</div></div>`
+        : ""
+    }`;
+  main.addEventListener("click", (e) => {
+    const d = e.target.closest("[data-doc]");
+    if (d && e.target.closest("[data-docopen]")) return openDocument(docs.find((x) => x.id === d.dataset.doc));
+    const card = e.target.closest(".req-card[data-id]");
+    if (card) resolutionView(res.find((r) => r.id === card.dataset.id), { upd, docs, mt: {} });
+  });
+};
+
+/* member dashboard: newest resolution news */
+async function memberResolutionNews(box) {
+  try {
+    const [res, upd] = await Promise.all([
+      db(App.sb.from("resolutions").select("id, resolution_no, title, status, approved_date, created_at")),
+      db(App.sb.from("resolution_updates").select("*").order("created_at", { ascending: false }).limit(5)),
+    ]);
+    const byId = Object.fromEntries(res.map((r) => [r.id, r]));
+    const news = [
+      ...upd.filter((u) => byId[u.resolution_id]).map((u) => ({ at: u.created_at, r: byId[u.resolution_id], text: u.note, st: u.new_status })),
+      ...res.map((r) => ({ at: r.created_at, r, text: "New resolution", st: r.status })),
+    ]
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .slice(0, 4);
+    if (!news.length) return (box.hidden = true);
+    box.innerHTML = `<div class="page-head" style="margin-bottom:.4rem"><h2 style="margin:0">📜 Resolution updates</h2><a class="btn small" href="#my-resolutions">See all</a></div>
+      <div class="stack" style="gap:.4rem">${news
+        .map((n) => `<div class="req-mini"><strong class="memno">Res. ${esc(n.r.resolution_no)}</strong> ${esc(n.r.title)} ${n.st ? resBadge(n.st) : ""}
+          <div class="small muted">${esc(fmtShort(String(n.at).slice(0, 10)))} · ${esc(n.text)}</div></div>`)
+        .join("")}</div>`;
+  } catch (_) {
+    box.hidden = true;
+  }
 }
 
 /* ===== js/main.js ===== */
